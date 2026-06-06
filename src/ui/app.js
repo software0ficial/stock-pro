@@ -1,9 +1,77 @@
 /**
  * Stock & Scan Pro - Frontend Application
  * Maneja autenticación, multi-tenancy y comandos
+ * ✅ VERSIÓN CON LOGS EXHAUSTIVOS PARA DEBUGGING
  */
 
 const API_BASE = '';
+
+// 🔍 LOG HELPER - Centralizado para debugging
+const Logger = {
+    log(section, message, data = null) {
+        const timestamp = new Date().toLocaleTimeString('es-ES', { 
+            hour12: false, 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+        });
+        const prefix = `[${timestamp}] 📱 Frontend [${section}]`;
+        
+        if (data) {
+            console.log(`${prefix}: ${message}`, data);
+        } else {
+            console.log(`${prefix}: ${message}`);
+        }
+    },
+    
+    error(section, message, error = null) {
+        const timestamp = new Date().toLocaleTimeString('es-ES', { 
+            hour12: false, 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+        });
+        const prefix = `[${timestamp}] ❌ Frontend [${section}]`;
+        
+        if (error) {
+            console.error(`${prefix}: ${message}`, error);
+        } else {
+            console.error(`${prefix}: ${message}`);
+        }
+    },
+    
+    success(section, message, data = null) {
+        const timestamp = new Date().toLocaleTimeString('es-ES', { 
+            hour12: false, 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+        });
+        const prefix = `[${timestamp}] ✅ Frontend [${section}]`;
+        
+        if (data) {
+            console.log(`%c${prefix}: ${message}`, 'color: #10b981; font-weight: bold;', data);
+        } else {
+            console.log(`%c${prefix}: ${message}`, 'color: #10b981; font-weight: bold;');
+        }
+    },
+    
+    warn(section, message, data = null) {
+        const timestamp = new Date().toLocaleTimeString('es-ES', { 
+            hour12: false, 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+        });
+        const prefix = `[${timestamp}] ⚠️ Frontend [${section}]`;
+        
+        if (data) {
+            console.warn(`${prefix}: ${message}`, data);
+        } else {
+            console.warn(`${prefix}: ${message}`);
+        }
+    }
+};
 
 // Función de utilidad para evitar llamadas excesivas a la API
 function debounce(func, wait = 300) {
@@ -161,7 +229,7 @@ const app = {
     },
 
     async init() {
-        console.log("🚀 Stock Pro: Iniciando aplicación...");
+        Logger.log('INIT', '🚀 Stock Pro: Iniciando aplicación...');
         try {
             await this.loadConfig();
             await this.loadTranslations();
@@ -170,12 +238,11 @@ const app = {
             this.setupDebouncedHandlers();
             
             if (this.state.token && this.state.user.id) {
-                console.log("🔍 Validando sesión activa con el servidor...");
-                // Validamos la sesión enviando el token actual en los parámetros
+                Logger.log('INIT', '🔍 Validando sesión activa con el servidor...');
                 const validation = await this.apiCall('auth.validate_session', { token: this.state.token });
                 
                 if (validation && validation.status === 'success') {
-                    console.log("✅ Sesión validada. Accediendo al panel.");
+                    Logger.success('INIT', '✅ Sesión validada. Accediendo al panel.', this.state.user);
                     this.setupAuthenticatedUI();
                     this.loadStock();
                     const targetView = (this.state.currentView && this.state.currentView !== 'view-login') 
@@ -183,22 +250,22 @@ const app = {
                         : 'view-stock';
                     this.switchView(targetView);
                 } else {
-                    console.log("⚠️ Sesión inválida o expirada. Redirigiendo al Login.");
-                    this.logout(); // Limpia localStorage y redirige
+                    Logger.warn('INIT', '⚠️ Sesión inválida o expirada. Redirigiendo al Login.');
+                    this.logout();
                 }
             } else {
-                console.log("🔑 No hay sesión activa, redirigiendo al Login.");
+                Logger.log('INIT', '🔑 No hay sesión activa, redirigiendo al Login.');
                 this.switchView('view-login');
             }
         } catch (e) {
-            console.error("❌ Error crítico durante la inicialización:", e);
+            Logger.error('INIT', '❌ Error crítico durante la inicialización:', e);
             Toast.error("Error al cargar la aplicación. Por favor, recarga la página.");
             this.switchView('view-login');
         }
     },
 
     setupAuthenticatedUI() {
-        // Mostrar opción de personal si es Dueño en el submenú
+        Logger.log('AUTH', 'Configurando UI autenticada para rol:', this.state.role);
         if (this.state.role === 'OWNER') {
             const navPersonnel = document.getElementById('nav-personnel');
             if (navPersonnel) navPersonnel.classList.remove('hidden');
@@ -210,6 +277,7 @@ const app = {
         const nav = document.getElementById('bottom-nav');
         if (!nav) return;
         
+        Logger.log('UI', `Actualizando visibilidad del nav: ${isHidden ? 'HIDDEN' : 'VISIBLE'}`);
         if (isHidden) {
             nav.classList.add('hidden');
             nav.style.display = 'none';
@@ -220,6 +288,7 @@ const app = {
     },
 
     switchView(viewId) {
+        Logger.log('NAVIGATION', `Cambiando a vista: ${viewId}`);
         this.state.currentView = viewId;
         localStorage.setItem('current_view', viewId);
         
@@ -231,7 +300,6 @@ const app = {
             item.classList.toggle('active', item.getAttribute('data-view') === viewId);
         });
 
-        // Cerrar submenú si está abierto
         const submenu = document.getElementById('submenu-popup');
         if (submenu) submenu.classList.remove('active');
 
@@ -241,7 +309,6 @@ const app = {
         if (viewId === 'view-cash') this.loadCashStatus();
         if (viewId === 'view-reports') this.loadReports();
 
-        // Control de visibilidad global: Forzar visibilidad si no es auth
         const isAuthView = (viewId === 'view-login' || viewId === 'view-register');
         const nav = document.getElementById('bottom-nav');
         if (nav) {
@@ -255,25 +322,42 @@ const app = {
         }
     },
 
+    toggleSubmenu() {
+        Logger.log('SUBMENU', 'Toggle submenu');
+        const submenu = document.getElementById('submenu-popup');
+        if (submenu) {
+            submenu.classList.toggle('active');
+        }
+    },
+
     async apiCall(command, params = {}) {
+        Logger.log('API', `Llamando comando: ${command}`, params);
+        
         try {
             const headers = { 'Content-Type': 'application/json' };
             if (this.state.token) {
                 headers['Authorization'] = this.state.token;
             }
 
+            const payload = {
+                command,
+                params,
+                role: this.state.role,
+                is_pro: this.state.isPro
+            };
+            
+            Logger.log('API', `📤 Enviando payload al servidor`, payload);
+
             const response = await fetch(`${API_BASE}/`, {
                 method: 'POST',
                 headers: headers,
-                body: JSON.stringify({
-                    command,
-                    params,
-                    role: this.state.role,
-                    is_pro: this.state.isPro
-                })
+                body: JSON.stringify(payload)
             });
             
+            Logger.log('API', `📥 Response status: ${response.status}`);
+            
             if (response.status === 401) {
+                Logger.warn('API', '⚠️ Sesión expirada (401). Limpiando localStorage y redirigiendo.');
                 Toast.error("Tu sesión ha expirado. Por favor, inicia sesión nuevamente.");
                 localStorage.clear();
                 this.state.token = null;
@@ -284,13 +368,15 @@ const app = {
             }
 
             if (!response.ok) {
+                Logger.error('API', `Server error ${response.status}`);
                 throw new Error(`Server responded with ${response.status}`);
             }
 
             const res = await response.json();
+            Logger.success('API', `✅ Response recibido de ${command}`, res.payload || res);
             return res.payload || res;
         } catch (e) {
-            console.error("API Error:", e);
+            Logger.error('API', `❌ Error en apiCall para ${command}:`, e);
             return { status: "error", message: `Error de conexión: ${e.message}` };
         }
     },
@@ -298,17 +384,23 @@ const app = {
     // --- AUTH METHODS ---
 
     async login() {
+        Logger.log('LOGIN', '🔐 Iniciando login...');
         const user = document.getElementById('login-user').value;
         const pass = document.getElementById('login-pass').value;
         
+        Logger.log('LOGIN', `Usuario: ${user}, Password recibida: ${!!pass}`);
+        
         if (!user || !pass) {
+            Logger.warn('LOGIN', '⚠️ Credenciales incompletas');
             Toast.warning('Completa usuario y contraseña');
             return;
         }
         
         const res = await this.apiCall('auth.login', { username: user, password: pass });
+        Logger.log('LOGIN', 'Respuesta del servidor:', res);
         
         if (res.status === 'success') {
+            Logger.success('LOGIN', `✅ Login exitoso para ${user}`);
             this.state.token = res.token;
             this.state.user = res.user;
             this.state.role = res.user.role;
@@ -322,20 +414,24 @@ const app = {
             this.loadStock();
             this.switchView('view-stock');
         } else {
+            Logger.error('LOGIN', `❌ Login fallido: ${res.message}`);
             Toast.error(res.message || 'Login fallido');
         }
     },
 
     async registerOwner() {
+        Logger.log('REGISTER', '📝 Iniciando registro de propietario...');
         const biz = document.getElementById('reg-business').value;
         const user = document.getElementById('reg-user').value;
         const pass = document.getElementById('reg-pass').value;
         
         if (!biz || !user || !pass) {
+            Logger.warn('REGISTER', '⚠️ Campos incompletos');
             Toast.warning('Completa todos los campos');
             return;
         }
         
+        Logger.log('REGISTER', `Datos: business=${biz}, user=${user}`);
         const res = await this.apiCall('auth.register_owner', { 
             business_name: biz, 
             username: user, 
@@ -343,14 +439,17 @@ const app = {
         });
         
         if (res.status === 'success') {
+            Logger.success('REGISTER', `✅ Negocio registrado: ${biz}`);
             Toast.success("Negocio registrado. Inicia sesión");
             this.switchView('view-login');
         } else {
+            Logger.error('REGISTER', `❌ Registro fallido: ${res.message}`);
             Toast.error(res.message || 'Registro fallido');
         }
     },
 
     async logout() {
+        Logger.log('LOGOUT', '🚪 Cerrando sesión...');
         localStorage.clear();
         this.state.token = null;
         this.state.user = {};
@@ -369,10 +468,14 @@ const app = {
     // --- PERSONNEL MANAGEMENT ---
 
     async inviteEmployee() {
+        Logger.log('PERSONNEL', '➕ Invitando nuevo empleado...');
         const user = document.getElementById('emp-user')?.value.trim();
         const pass = document.getElementById('emp-pass')?.value;
         
+        Logger.log('PERSONNEL', `Usuario: ${user}, Password: ${!!pass}`);
+        
         if (!user || !pass) {
+            Logger.warn('PERSONNEL', '⚠️ Datos incompletos');
             Toast.warning("Ingrese usuario y contraseña");
             return;
         }
@@ -383,17 +486,22 @@ const app = {
             tenant_id: this.state.user.tenant_id 
         });
         
+        Logger.log('PERSONNEL', 'Respuesta:', res);
+        
         if (res.status === 'success') {
+            Logger.success('PERSONNEL', `✅ Empleado agregado: ${user}`);
             Toast.success("Empleado agregado");
             document.getElementById('emp-user').value = '';
             document.getElementById('emp-pass').value = '';
             this.loadPersonnel();
         } else {
+            Logger.error('PERSONNEL', `❌ Error: ${res.message}`);
             Toast.error(res.message);
         }
     },
 
     async setPermission(userId, permKey, granted) {
+        Logger.log('PERMISSIONS', `Asignando permiso: ${permKey}=${granted} para usuario ${userId}`);
         const res = await this.apiCall('user.set_permission', { 
             tenant_id: this.state.user.tenant_id, 
             user_id: userId, 
@@ -401,32 +509,43 @@ const app = {
             granted: granted 
         });
         if (res.status === 'success') {
+            Logger.success('PERMISSIONS', '✅ Permiso actualizado');
             Toast.success('Permiso actualizado');
             this.loadPersonnel();
         } else {
+            Logger.error('PERMISSIONS', `❌ Error: ${res.message}`);
             Toast.error(res.message);
         }
     },
 
     async revokeAccess(userId) {
+        Logger.log('PERSONNEL', `Revocando acceso para usuario: ${userId}`);
         if (!confirm("¿Revocar acceso a este usuario?")) return;
         const res = await this.apiCall('user.revoke_access', { user_id: userId });
         if (res.status === 'success') {
+            Logger.success('PERSONNEL', '✅ Acceso revocado');
             Toast.success('Acceso revocado');
             this.loadPersonnel();
         } else {
+            Logger.error('PERSONNEL', `❌ Error: ${res.message}`);
             Toast.error(res.message);
         }
     },
 
     async loadPersonnel() {
+        Logger.log('PERSONNEL', '📥 Cargando lista de personal...');
         const res = await this.apiCall('user.list', { tenant_id: this.state.user.tenant_id });
         const container = document.getElementById('personnel-table-body');
-        if (!container) return;
+        if (!container) {
+            Logger.warn('PERSONNEL', '⚠️ Contenedor no encontrado');
+            return;
+        }
         
+        Logger.log('PERSONNEL', 'Respuesta:', res);
         container.innerHTML = '';
         
         if (res.status === 'success' && res.data) {
+            Logger.log('PERSONNEL', `✅ ${res.data.length} empleados cargados`);
             res.data.forEach(u => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -439,10 +558,13 @@ const app = {
                 `;
                 container.appendChild(row);
             });
+        } else {
+            Logger.error('PERSONNEL', `❌ Error cargando personal: ${res.message}`);
         }
     },
 
     async promptPermission(userId) {
+        Logger.log('PERMISSIONS', `Dialog de permiso para usuario: ${userId}`);
         const permKey = prompt("Llave del permiso:");
         if (!permKey) return;
         const granted = confirm(`¿Conceder ${permKey}?`);
@@ -452,14 +574,20 @@ const app = {
     // --- STOCK MANAGEMENT ---
 
     async loadStock() {
+        Logger.log('STOCK', '📥 Cargando inventario...');
         const filter = document.getElementById('stock-search')?.value || '';
         const res = await this.apiCall('stock.list', { filter });
         const tbody = document.getElementById('stock-table-body');
-        if (!tbody) return;
+        if (!tbody) {
+            Logger.warn('STOCK', '⚠️ Tabla no encontrada');
+            return;
+        }
         
+        Logger.log('STOCK', 'Respuesta:', res);
         tbody.innerHTML = '';
         
         if (res.status === 'success' && res.data) {
+            Logger.log('STOCK', `✅ ${res.data.length} productos cargados`);
             res.data.forEach(p => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -475,25 +603,31 @@ const app = {
                 `;
                 tbody.appendChild(row);
             });
+        } else {
+            Logger.error('STOCK', `❌ Error: ${res.message}`);
         }
     },
 
     setupDebouncedHandlers() {
+        Logger.log('SETUP', 'Configurando debounce handlers');
         this.debouncedLoadStock = debounce(() => this.loadStock());
         this.debouncedQuickAdd = debounce(() => this.quickAddProduct());
     },
 
-    showModal(id) { 
+    showModal(id) {
+        Logger.log('MODAL', `Abriendo modal: ${id}`);
         const modal = document.getElementById(id);
         if (modal) modal.classList.remove('hidden'); 
     },
     
-    closeModal(id) { 
+    closeModal(id) {
+        Logger.log('MODAL', `Cerrando modal: ${id}`);
         const modal = document.getElementById(id);
         if (modal) modal.classList.add('hidden'); 
     },
 
     async saveProduct() {
+        Logger.log('STOCK', '💾 Guardando producto...');
         const params = {
             codigo: document.getElementById('p-code')?.value,
             nombre: document.getElementById('p-name')?.value,
@@ -502,17 +636,22 @@ const app = {
             categoria: document.getElementById('p-cat')?.value,
             es_peso: document.getElementById('p-weight')?.checked || false
         };
+        Logger.log('STOCK', 'Parámetros:', params);
+        
         const res = await this.apiCall('stock.add', params);
         if (res.status === 'success') {
+            Logger.success('STOCK', '✅ Producto guardado');
             Toast.success('Producto guardado');
             this.closeModal('modal-product');
             this.loadStock();
-        } else { 
+        } else {
+            Logger.error('STOCK', `❌ Error: ${res.message}`);
             Toast.error(res.message);
         }
     },
 
     async editProduct(codigo) {
+        Logger.log('STOCK', `Editando producto: ${codigo}`);
         const res = await this.apiCall('stock.get', { codigo });
         if (res.status === 'success') {
             const p = res.data;
@@ -527,12 +666,15 @@ const app = {
     },
 
     async deleteProduct(codigo) {
+        Logger.log('STOCK', `Eliminando producto: ${codigo}`);
         if (confirm('¿Eliminar producto?')) {
             const res = await this.apiCall('stock.delete', { codigo });
             if (res.status === 'success') {
+                Logger.success('STOCK', '✅ Producto eliminado');
                 Toast.success('Producto eliminado');
                 this.loadStock();
             } else {
+                Logger.error('STOCK', `❌ Error: ${res.message}`);
                 Toast.error(res.message);
             }
         }
@@ -541,22 +683,36 @@ const app = {
     // --- SALES MANAGEMENT ---
 
     async quickAddProduct() {
+        Logger.log('SALES', '🛒 Agregando producto al carrito...');
         const codigo = document.getElementById('sale-scan')?.value;
-        if (!codigo || codigo.length < 2) return;
+        if (!codigo || codigo.length < 2) {
+            Logger.warn('SALES', '⚠️ Código muy corto o vacío');
+            return;
+        }
+        Logger.log('SALES', `Código escaneado: ${codigo}`);
+        
         const res = await this.apiCall('venta.add', { codigo });
+        Logger.log('SALES', 'Respuesta:', res);
+        
         if (res.status === 'success') {
+            Logger.success('SALES', '✅ Producto agregado al carrito');
             this.state.cart.push(res.data);
             this.renderCart();
             document.getElementById('sale-scan').value = '';
             Toast.success('Producto agregado');
         } else {
+            Logger.error('SALES', `❌ Error: ${res.message}`);
             Toast.error(res.message);
         }
     },
 
     renderCart() {
+        Logger.log('SALES', 'Renderizando carrito...');
         const container = document.getElementById('cart-items');
-        if (!container) return;
+        if (!container) {
+            Logger.warn('SALES', '⚠️ Contenedor de carrito no encontrado');
+            return;
+        }
         
         container.innerHTML = '';
         let total = 0;
@@ -573,18 +729,23 @@ const app = {
             container.appendChild(div);
         });
         
+        Logger.log('SALES', `Carrito: ${this.state.cart.length} items, Total: $${total.toFixed(2)}`);
+        
         const totalEl = document.getElementById('cart-total');
         if (totalEl) totalEl.innerText = `$${total.toFixed(2)}`;
     },
 
     removeFromCart(idx) {
+        Logger.log('SALES', `Removiendo item ${idx} del carrito`);
         this.state.cart.splice(idx, 1);
         this.renderCart();
         Toast.info('Producto removido');
     },
 
     openCheckout() {
+        Logger.log('SALES', 'Abriendo checkout...');
         if (this.state.cart.length === 0) {
+            Logger.warn('SALES', '⚠️ Carrito vacío');
             Toast.warning("Carrito vacío");
             return;
         }
@@ -592,17 +753,19 @@ const app = {
     },
 
     async confirmSale() {
+        Logger.log('SALES', '💰 Confirmando venta...');
         const items = this.state.cart.map(item => ({
             codigo: item.codigo || item.code,
             cantidad: item.cantidad || item.quantity || 1
         }));
         
-        // Calculate total from cart to use as default paga_con
         let total = 0;
         this.state.cart.forEach(item => {
             total += (item.precio || item.price || 0) * (item.cantidad || item.quantity || 1);
         });
 
+        Logger.log('SALES', `Items: ${items.length}, Total: $${total.toFixed(2)}`);
+        
         const res = await this.apiCall('venta.cobrar', { 
             cliente: "General", 
             items: items, 
@@ -610,12 +773,17 @@ const app = {
             paga_con: total,
             alias: null 
         });
+        
+        Logger.log('SALES', 'Respuesta:', res);
+        
         if (res.status === 'success') {
+            Logger.success('SALES', '✅ Venta registrada');
             Toast.success('Venta registrada');
             this.state.cart = [];
             this.renderCart();
             this.closeModal('modal-checkout');
         } else {
+            Logger.error('SALES', `❌ Error: ${res.message}`);
             Toast.error(res.message);
         }
     },
@@ -623,9 +791,15 @@ const app = {
     // --- IMPORT MANAGEMENT ---
 
     async handleFileUpload(input) {
-        if (!input.files.length) return;
+        Logger.log('IMPORT', '📤 Cargando archivo...');
+        if (!input.files.length) {
+            Logger.warn('IMPORT', '⚠️ No hay archivo seleccionado');
+            return;
+        }
         
         const file = input.files[0];
+        Logger.log('IMPORT', `Archivo: ${file.name}, Tamaño: ${file.size} bytes`);
+        
         const formData = new FormData();
         formData.append('file', file);
 
@@ -639,60 +813,76 @@ const app = {
             });
 
             const data = await response.json();
+            Logger.log('IMPORT', 'Respuesta upload:', data);
             
             if (data.payload.status === 'success') {
+                Logger.success('IMPORT', '✅ Archivo cargado');
                 Toast.success('Archivo cargado');
                 document.getElementById('btn-run-import').disabled = false;
             } else {
+                Logger.error('IMPORT', `❌ Error: ${data.payload.message}`);
                 Toast.error(data.payload.message);
             }
         } catch (e) {
+            Logger.error('IMPORT', '❌ Error en upload:', e);
             Toast.error('Error en upload');
         }
     },
 
     async runImportPreview() {
+        Logger.log('IMPORT', '🔍 Ejecutando preview de importación...');
         Toast.info('Función en desarrollo');
     },
 
     async commitImport() {
+        Logger.log('IMPORT', '💾 Confirmando importación...');
         Toast.info('Función en desarrollo');
     },
 
-    // --- SUBSCRIPTION MANAGEMENT ---
+    // --- ALIAS MANAGEMENT ---
 
-    async loadSubscription() {
-        const container = document.getElementById('current-plan');
-        if (container && this.state.user) {
-            container.innerHTML = `
-                <strong>Plan:</strong> ${this.state.user.plan || 'FREE'}<br>
-                <strong>Créditos:</strong> ${this.state.user.credits || 0}<br>
-                <strong>Tenant:</strong> ${this.state.user.tenant_id || '-'}
-            `;
+    async addAlias() {
+        Logger.log('ALIAS', '➕ Agregando nuevo alias...');
+        const nombre = document.getElementById('alias-name')?.value;
+        const limite = parseFloat(document.getElementById('alias-limit')?.value || 0);
+        
+        Logger.log('ALIAS', `Nombre: ${nombre}, Límite: $${limite}`);
+        
+        if (!nombre || limite <= 0) {
+            Logger.warn('ALIAS', '⚠️ Datos inválidos');
+            Toast.warning("Ingrese nombre y límite válidos");
+            return;
         }
-    },
 
-    async updatePlan(plan, credits) {
-        const res = await this.apiCall('sys.subscription.update', { 
-            tenant_id: this.state.user.tenant_id, 
-            plan: plan, 
-            credits: credits 
-        });
+        const res = await this.apiCall('alias.add', { nombre, limite });
+        Logger.log('ALIAS', 'Respuesta:', res);
+        
         if (res.status === 'success') {
-            Toast.success(`Plan actualizado a ${plan}`);
-            await this.loadSubscription();
+            Logger.success('ALIAS', '✅ Alias agregado');
+            Toast.success("Alias agregado");
+            document.getElementById('alias-name').value = '';
+            document.getElementById('alias-limit').value = '';
+            this.loadAliases();
         } else {
+            Logger.error('ALIAS', `❌ Error: ${res.message}`);
             Toast.error(res.message);
         }
     },
 
     async loadAliases() {
+        Logger.log('ALIAS', '📥 Cargando lista de alias...');
         const res = await this.apiCall('alias.list', {});
         const container = document.getElementById('alias-table-body');
-        if (!container) return;
+        if (!container) {
+            Logger.warn('ALIAS', '⚠️ Tabla no encontrada');
+            return;
+        }
         
+        Logger.log('ALIAS', 'Respuesta:', res);
         container.innerHTML = '';
+        
         if (res.status === 'success' && res.data) {
+            Logger.log('ALIAS', `✅ ${res.data.length} alias cargados`);
             res.data.forEach(a => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -705,13 +895,72 @@ const app = {
                 `;
                 container.appendChild(row);
             });
+        } else {
+            Logger.error('ALIAS', `❌ Error cargando alias: ${res.message}`);
         }
     },
 
+    async deleteAlias(aliasId) {
+        Logger.log('ALIAS', `🗑️ Eliminando alias: ${aliasId}`);
+        if (confirm('¿Eliminar alias?')) {
+            const res = await this.apiCall('alias.delete', { alias_id: aliasId });
+            Logger.log('ALIAS', 'Respuesta:', res);
+            
+            if (res.status === 'success') {
+                Logger.success('ALIAS', '✅ Alias eliminado');
+                Toast.success('Alias eliminado');
+                this.loadAliases();
+            } else {
+                Logger.error('ALIAS', `❌ Error: ${res.message}`);
+                Toast.error(res.message);
+            }
+        }
+    },
+
+    // --- SUBSCRIPTION MANAGEMENT ---
+
+    async loadSubscription() {
+        Logger.log('SUBSCRIPTION', '📥 Cargando información de suscripción...');
+        const container = document.getElementById('current-plan');
+        if (container && this.state.user) {
+            container.innerHTML = `
+                <strong>Plan:</strong> ${this.state.user.plan || 'FREE'}<br>
+                <strong>Créditos:</strong> ${this.state.user.credits || 0}<br>
+                <strong>Tenant:</strong> ${this.state.user.tenant_id || '-'}
+            `;
+            Logger.log('SUBSCRIPTION', 'Plan:', this.state.user.plan);
+        }
+    },
+
+    async updatePlan(plan, credits) {
+        Logger.log('SUBSCRIPTION', `Actualizando plan a ${plan} con +${credits} créditos`);
+        const res = await this.apiCall('sys.subscription.update', { 
+            tenant_id: this.state.user.tenant_id, 
+            plan: plan, 
+            credits: credits 
+        });
+        if (res.status === 'success') {
+            Logger.success('SUBSCRIPTION', `✅ Plan actualizado`);
+            Toast.success(`Plan actualizado a ${plan}`);
+            await this.loadSubscription();
+        } else {
+            Logger.error('SUBSCRIPTION', `❌ Error: ${res.message}`);
+            Toast.error(res.message);
+        }
+    },
+
+    // --- CASH MANAGEMENT ---
+
     async loadCashStatus() {
+        Logger.log('CASH', '📥 Cargando estado de caja...');
         const res = await this.apiCall('caja.status', {});
         const container = document.getElementById('cash-status');
-        if (!container) return;
+        if (!container) {
+            Logger.warn('CASH', '⚠️ Contenedor no encontrado');
+            return;
+        }
+        
+        Logger.log('CASH', 'Respuesta:', res);
         
         if (res.status === 'success' && res.data) {
             const d = res.data;
@@ -722,16 +971,59 @@ const app = {
                 <strong>Ventas Digital:</strong> $${parseFloat(d.ventas_digital || 0).toFixed(2)}<br>
                 <strong>Total Esperado:</strong> $${totalEsperado.toFixed(2)}
             `;
+            Logger.log('CASH', `Estado: Abierta=${d.abierta}, Total=$${totalEsperado.toFixed(2)}`);
         } else {
             container.innerHTML = 'No hay caja abierta actualmente.';
+            Logger.log('CASH', 'Sin caja abierta');
         }
     },
 
+    async openCash() {
+        Logger.log('CASH', '🟢 Abriendo caja...');
+        const monto_inicial = parseFloat(document.getElementById('cash-amount')?.value || 0);
+        Logger.log('CASH', `Monto inicial: $${monto_inicial}`);
+        
+        const res = await this.apiCall('caja.abrir', { monto_inicial });
+        Logger.log('CASH', 'Respuesta:', res);
+        
+        if (res.status === 'success') {
+            Logger.success('CASH', '✅ Caja abierta');
+            Toast.success('Caja abierta');
+            this.loadCashStatus();
+        } else {
+            Logger.error('CASH', `❌ Error: ${res.message}`);
+            Toast.error(res.message);
+        }
+    },
+
+    async closeCash() {
+        Logger.log('CASH', '🔴 Cerrando caja...');
+        const monto_real = parseFloat(document.getElementById('cash-amount')?.value || 0);
+        Logger.log('CASH', `Monto real: $${monto_real}`);
+        
+        const res = await this.apiCall('caja.cerrar', { monto_real });
+        Logger.log('CASH', 'Respuesta:', res);
+        
+        if (res.status === 'success') {
+            Logger.success('CASH', '✅ Caja cerrada');
+            Toast.success('Caja cerrada');
+            this.loadCashStatus();
+        } else {
+            Logger.error('CASH', `❌ Error: ${res.message}`);
+            Toast.error(res.message);
+        }
+    },
+
+    // --- REPORTS ---
+
     async loadReports() {
+        Logger.log('REPORTS', '📊 Cargando reportes...');
         const [resResumen, resAlertas] = await Promise.all([
             this.apiCall('reporte.resumen', {}),
             this.apiCall('reporte.alertas', {})
         ]);
+
+        Logger.log('REPORTS', 'Respuestas:', { resumen: resResumen, alertas: resAlertas });
 
         const summaryEl = document.getElementById('report-summary');
         if (summaryEl && resResumen.status === 'success') {
@@ -740,6 +1032,7 @@ const app = {
                 <strong>Total Facturado:</strong> $${parseFloat(d.total_facturado || 0).toFixed(2)}<br>
                 <strong>Ganancia Est. (30%):</strong> $${parseFloat(d.ganancia_estimada || 0).toFixed(2)}
             `;
+            Logger.log('REPORTS', `Facturación: $${d.total_facturado}`);
         }
 
         const alertsEl = document.getElementById('report-alerts');
@@ -747,7 +1040,9 @@ const app = {
             alertsEl.innerHTML = '';
             if (resAlertas.data.length === 0) {
                 alertsEl.innerHTML = '<p style="color: var(--text-muted)">No hay alertas de stock.</p>';
+                Logger.log('REPORTS', 'Sin alertas de stock');
             } else {
+                Logger.log('REPORTS', `${resAlertas.data.length} alertas de stock`);
                 resAlertas.data.forEach(p => {
                     const div = document.createElement('div');
                     div.style.cssText = 'padding:10px; margin-bottom:10px; background:rgba(239, 68, 68, 0.1); border-left: 4px solid var(--error); border-radius:4px; font-size:0.9rem;';
@@ -758,71 +1053,59 @@ const app = {
         }
     },
 
-    async deleteAlias(aliasId) {
-        if (confirm('¿Eliminar alias?')) {
-            const res = await this.apiCall('alias.delete', { alias_id: aliasId });
-            if (res.status === 'success') {
-                Toast.success('Alias eliminado');
-            } else {
-                Toast.error(res.message);
-            }
-        }
-    },
-
-    // --- CASH MANAGEMENT ---
-
-    async openCash() {
-        const monto_inicial = parseFloat(document.getElementById('cash-amount')?.value || 0);
-        const res = await this.apiCall('caja.abrir', { monto_inicial });
-        if (res.status === 'success') {
-            Toast.success('Caja abierta');
-        } else {
-            Toast.error(res.message);
-        }
-    },
-
-    async closeCash() {
-        const monto_real = parseFloat(document.getElementById('cash-amount')?.value || 0);
-        const res = await this.apiCall('caja.cerrar', { monto_real });
-        if (res.status === 'success') {
-            Toast.success('Caja cerrada');
-        } else {
-            Toast.error(res.message);
-        }
-    },
-
-    // --- EXPORT ---
-
     async exportCSV() {
+        Logger.log('EXPORT', '📄 Exportando a CSV...');
         const res = await this.apiCall('sys.export_csv', {});
+        Logger.log('EXPORT', 'Respuesta:', res);
+        
         if (res.status === 'success') {
+            Logger.success('EXPORT', '✅ Exportación completada');
             Toast.success('Exportación completada');
         } else {
+            Logger.error('EXPORT', `❌ Error: ${res.message}`);
             Toast.error(res.message);
         }
     },
 
-    // --- SENTINEL / ADMIN ---
+    // --- UTILITIES ---
 
-    async updateSentinel() {
-        Toast.info('Función en desarrollo');
+    async loadConfig() {
+        Logger.log('CONFIG', 'Cargando configuración...');
+        // Mock implementation
+        return Promise.resolve();
     },
 
-    async rollbackSentinel() {
-        Toast.info('Función en desarrollo');
+    async loadTranslations() {
+        Logger.log('TRANSLATIONS', 'Cargando traducciones...');
+        // Mock implementation
+        return Promise.resolve();
     },
 
-    async selectMasterTarget() {
-        Toast.info('Función en desarrollo');
+    applyTheme() {
+        Logger.log('THEME', `Aplicando tema: ${this.state.theme}`);
+        // Mock implementation
     },
 
-    async masterUpdateSubscription() {
-        Toast.info('Función en desarrollo');
+    applyTranslations() {
+        Logger.log('TRANSLATIONS', `Aplicando traducciones: ${this.state.lang}`);
+        // Mock implementation
+    },
+
+    setTheme(theme) {
+        Logger.log('THEME', `Cambiando tema a: ${theme}`);
+        this.state.theme = theme;
+        localStorage.setItem('theme', theme);
+    },
+
+    setLang(lang) {
+        Logger.log('LANG', `Cambiando idioma a: ${lang}`);
+        this.state.lang = lang;
+        localStorage.setItem('lang', lang);
     }
 };
 
 // Inicializar app cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', () => {
+    Logger.log('BOOTSTRAP', '🔧 DOM ready. Iniciando app...');
     app.init();
 });
-
