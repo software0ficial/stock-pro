@@ -204,12 +204,8 @@ class CommandDispatcher:
 
     def _handle_auth_validate_session(self, params):
         """Valida si un token de sesión es válido y devuelve los datos del usuario."""
-        # El token viene en los headers, pero el dispatcher lo recibe vía el servicio de auth
-        # si el web_server lo pasó. Para este comando, validamos el token actual.
-        # Nota: En una implementación real, el token se extrae del contexto de la petición.
         token = params.get("token") 
         if not token:
-            # Intentamos obtener el token si el web_server lo inyectó en los params
             return {"status": "error", "message": "Token no proporcionado para validación."}
         
         user = self.auth_service.validate_session(token)
@@ -276,7 +272,8 @@ class CommandDispatcher:
         if hasattr(self.auth_service, "list_users"):
             return self.auth_service.list_users(tenant_id)
         
-        query = "SELECT id, username, role FROM users WHERE tenant_id = ?"
+        # ✅ FIX: Query correcta para PostgreSQL (con placeholders %s)
+        query = "SELECT id, username, role, is_active, created_at FROM users WHERE tenant_id = %s ORDER BY username"
         users = self.auth_service.global_db.fetch_all(query, (tenant_id,))
         return {"status": "success", "data": [dict(u) for u in users]}
 
@@ -417,7 +414,7 @@ class CommandDispatcher:
             WHERE 1=1
             GROUP BY p.codigo
             ORDER BY total_vendido DESC
-            LIMIT ?
+            LIMIT %s
         '''
         top = self.db.fetch_all(query, (limit,))
         return {"status": "success", "data": [dict(t) for t in top]}
@@ -441,7 +438,7 @@ class CommandDispatcher:
 
     def _handle_logs_view(self, params):
         limit = params.get("limit", 100)
-        logs = self.db.fetch_all("SELECT * FROM audit WHERE id > 0 ORDER BY id DESC LIMIT ?", (limit,))
+        logs = self.db.fetch_all("SELECT * FROM audit WHERE id > 0 ORDER BY id DESC LIMIT %s", (limit,))
         return {"status": "success", "data": [dict(l) for l in logs]}
 
     # --- HANDLERS DE ALIAS ---
