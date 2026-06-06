@@ -63,13 +63,15 @@ class WebAPIHandler(BaseHTTPRequestHandler):
         return user_session, None
 
     def do_GET(self):
-        logging.info(f"📩 GET Request: {self.path}")
+        logging.info(f"📩 GET Request: path={self.path!r}")
         ui_dir = os.path.dirname(__file__)
         
         # Normalizar ruta: eliminar query strings para la comprobación de archivos estáticos
         clean_path = self.path.split('?')[0]
+        logging.info(f"🔍 do_GET: full path={self.path!r} | clean_path={clean_path!r}")
 
         # --- APP WEB PWA (Nueva versión híbrida) ---
+        logging.info(f"🔍 do_GET: checking /appweb block for clean_path={clean_path!r}")
         if clean_path.startswith('/appweb'):
             rel_path = clean_path.replace('/appweb/', '').lstrip('/')
             if not rel_path or rel_path == '':
@@ -91,27 +93,35 @@ class WebAPIHandler(BaseHTTPRequestHandler):
                     logging.error(f"Error sirviendo appweb {file_path}: {e}")
                     self.send_error(500, f"Error interno: {e}")
                     return
+        logging.info(f"🔍 do_GET: past /appweb block, continuing with clean_path={clean_path!r}")
 
         # --- ADMIN DASHBOARD (serve HTML) ---
-
-            if clean_path == '/admin' or clean_path == '/admin/' or (clean_path.startswith('/admin/') and not clean_path.startswith('/api/')):
-                # Si es /admin o una subruta no-API, servimos el dashboard
-                file_path = os.path.join(ui_dir, "admin_dashboard.html")
-                if os.path.exists(file_path):
-                    try:
-                        content = Path(file_path).read_bytes()
-                        self.send_response(200)
-                        self.send_header('Content-type', 'text/html; charset=utf-8')
-                        self.send_header('Content-Length', len(content))
-                        self.end_headers()
-                        self.wfile.write(content)
-                        return
-                    except Exception as e:
-                        self.send_error(500, f"Error interno: {e}")
-                        return
-                else:
-                    self.send_error(404, "Admin dashboard no encontrado")
+        logging.info(f"🔍 do_GET: checking /admin condition | clean_path={clean_path!r}")
+        if clean_path == '/admin' or clean_path == '/admin/' or (clean_path.startswith('/admin/') and not clean_path.startswith('/api/')):
+            logging.info(f"✅ do_GET: matched /admin condition for clean_path={clean_path!r}")
+            # Si es /admin o una subruta no-API, servimos el dashboard
+            file_path = os.path.join(ui_dir, "admin_dashboard.html")
+            logging.info(f"🔍 do_GET: ui_dir={ui_dir!r} | constructed file_path={file_path!r}")
+            file_exists = os.path.exists(file_path)
+            logging.info(f"🔍 do_GET: os.path.exists({file_path!r}) = {file_exists}")
+            if file_exists:
+                try:
+                    logging.info(f"📖 do_GET: reading admin_dashboard.html from {file_path!r}")
+                    content = Path(file_path).read_bytes()
+                    logging.info(f"✅ do_GET: successfully read admin_dashboard.html ({len(content)} bytes)")
+                    self.send_response(200)
+                    self.send_header('Content-type', 'text/html; charset=utf-8')
+                    self.send_header('Content-Length', len(content))
+                    self.end_headers()
+                    self.wfile.write(content)
                     return
+                except Exception as e:
+                    self.send_error(500, f"Error interno: {e}")
+                    return
+            else:
+                logging.error(f"❌ do_GET: admin_dashboard.html NOT FOUND at {file_path!r}")
+                self.send_error(404, "Admin dashboard no encontrado")
+                return
 
         # --- ADMIN API (GET endpoints, all require MASTER role) ---
 
@@ -222,6 +232,7 @@ class WebAPIHandler(BaseHTTPRequestHandler):
         if self.path == '/api/health':
             return self._json_response({"status": "healthy", "server": "StockScan-API", "version": "2.0"})
         
+        logging.warning(f"⚠️ do_GET: reached final 404 handler | path={self.path!r} | clean_path={clean_path!r}")
         self.send_error(404, "Endpoint o archivo no encontrado")
 
     def do_POST(self):
