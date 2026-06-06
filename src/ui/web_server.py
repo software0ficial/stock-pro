@@ -92,26 +92,25 @@ class WebAPIHandler(BaseHTTPRequestHandler):
                     self.send_error(500, f"Error interno: {e}")
                     return
 
-        # --- ADMIN DASHBOARD (serve HTML) ---
-
-            if clean_path == '/admin' or clean_path == '/admin/' or (clean_path.startswith('/admin/') and not clean_path.startswith('/api/')):
-                # Si es /admin o una subruta no-API, servimos el dashboard
-                file_path = os.path.join(ui_dir, "admin_dashboard.html")
-                if os.path.exists(file_path):
-                    try:
-                        content = Path(file_path).read_bytes()
-                        self.send_response(200)
-                        self.send_header('Content-type', 'text/html; charset=utf-8')
-                        self.send_header('Content-Length', len(content))
-                        self.end_headers()
-                        self.wfile.write(content)
-                        return
-                    except Exception as e:
-                        self.send_error(500, f"Error interno: {e}")
-                        return
-                else:
-                    self.send_error(404, "Admin dashboard no encontrado")
+        if clean_path == '/admin' or clean_path == '/admin/' or (clean_path.startswith('/admin/') and not clean_path.startswith('/api/')):
+            # Si es /admin o una subruta no-API, servimos el dashboard
+            file_path = os.path.join(ui_dir, "admin_dashboard.html")
+            if os.path.exists(file_path):
+                try:
+                    content = Path(file_path).read_bytes()
+                    self.send_response(200)
+                    self.send_header('Content-type', 'text/html; charset=utf-8')
+                    self.send_header('Content-Length', len(content))
+                    self.end_headers()
+                    self.wfile.write(content)
                     return
+                except Exception as e:
+                    self.send_error(500, f"Error interno: {e}")
+                    return
+            else:
+                self.send_error(404, "Admin dashboard no encontrado")
+                return
+
 
         # --- ADMIN API (GET endpoints, all require MASTER role) ---
 
